@@ -55,6 +55,46 @@ class AutoFarm
 		return plantable
 	end
 	
+	def find_plant_for_biome(plants, farm, baseidx)
+		des = df.map_designation_at(farm.centerx, farm.centery, farm.z)
+		underground = des.subterranean
+		if (underground)
+			# map_designation_at gives biome, even underground; underground plants have SUBTERRANEAN_WATER
+			sfbiome = "SUBTERRANEAN_WATER";
+		else
+			# if above ground, return our biome string.
+			sfbiome = DFHack::BiomeType::ENUM[des.biome]
+		end
+		idx = baseidx
+		limit = plants.length - 1
+		for i in 0..limit
+			idx = (baseidx + 1) % plants.length
+			newplant = plants[idx % plants.length]
+			if (newplant == -1)
+				# zero valid plants for this farm type
+				return -1
+			end
+			rawplant = df.world.raws.plants.all[newplant]
+			enum = nil
+			nume = nil
+			DFHack::PlantRawFlags::ENUM.each {|key, value|
+				if (value.to_s == "BIOME_#{sfbiome}")
+					# Our biome matches the plant raw flag biome.
+					enum = key
+					nume = value
+				end
+			}
+			if (!enum.nil?)
+				# Check the value of the biome we got above
+				valid = rplant.flags[enum]
+				#puts "Found valid plant #{rplant.id} for biome" if valid
+				return newplant if valid
+			end
+			#puts "Plant #{rplant.id} not suitable for current biome"
+		end
+		-1
+	end
+
 	def set_farms(plants, farms)
 		return if farms.length == 0
 		if plants.length == 0
@@ -64,7 +104,8 @@ class AutoFarm
 		season = df.cur_season
 		
 		farms.each_with_index { |f, idx|
-			f.plant_id[season] = plants[idx % plants.length]
+			newplant = find_plant_for_biome(plants, f, idx % plants.length)
+			f.plant_id[season] = newplant
 		}
 	end
 
